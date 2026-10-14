@@ -1,0 +1,60 @@
+JOGO DA VELHA ONLINE — CONFIGURAÇÃO PARA GITHUB PAGES
+
+O site usa Firebase Realtime Database para sincronizar as jogadas entre dois celulares. O GitHub Pages sozinho hospeda arquivos estáticos, então é necessário configurar esse serviço gratuito.
+
+1. CRIAR O PROJETO
+- Entre em https://console.firebase.google.com/ e crie um projeto.
+- Dentro do projeto, adicione um aplicativo Web (ícone </>).
+- Copie o objeto firebaseConfig que o Firebase mostrar.
+
+2. ATIVAR LOGIN ANÔNIMO
+- Firebase Console > Authentication > Começar.
+- Em Sign-in method (Método de login), ative Anonymous (Anônimo).
+
+3. CRIAR O BANCO DE DADOS
+- Firebase Console > Realtime Database > Criar banco de dados.
+- Escolha a região oferecida mais próxima.
+- Depois de criar, copie a URL do banco. Ela terá formato parecido com:
+  https://NOME-DO-PROJETO-default-rtdb.firebaseio.com
+  (use exatamente a URL mostrada pelo Firebase; o formato pode variar).
+
+4. COLOCAR A CONFIGURAÇÃO NO SITE
+- Abra index.html em um editor de texto.
+- Procure por: const firebaseConfig = {
+- Substitua os valores de exemplo pelos valores reais do seu app Firebase.
+- Salve o arquivo.
+
+5. REGRAS DO REALTIME DATABASE
+Para um teste rápido entre amigos, você pode usar regras que exigem login anônimo e deixam as salas acessíveis a usuários autenticados. Em Realtime Database > Rules, use:
+
+{
+  "rules": {
+    "rooms": {
+      "$room": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}
+
+Importante: essas regras permitem que qualquer pessoa autenticada leia ou altere qualquer sala se souber o caminho. São adequadas apenas para um protótipo entre amigos, não para um jogo público importante. Não habilite regras abertas a todos sem autenticação.
+
+6. PUBLICAR NO GITHUB PAGES
+- Crie um repositório no GitHub.
+- Envie index.html para a raiz do repositório.
+- Abra Settings > Pages.
+- Em Build and deployment, escolha Deploy from a branch, branch main e pasta /(root).
+- Salve e espere o GitHub fornecer a URL.
+
+7. JOGAR
+- Abra a URL do site no primeiro celular e toque em “Criar sala”.
+- Envie o código de 6 caracteres para seu amigo.
+- No segundo celular, abra a mesma URL, toque em “Entrar em sala”, digite o código e entre.
+- X começa a partida. As jogadas aparecem nos dois celulares.
+
+OBSERVAÇÕES
+- Os dois celulares precisam estar conectados à internet.
+- Não compartilhe sua configuração privada de conta ou credenciais. A configuração de app Web do Firebase normalmente fica no site; a segurança deve ser feita pelas regras do banco.
+- Se aparecer “Falta configurar o Firebase”, os valores do firebaseConfig ainda são os exemplos deste arquivo.
+- Se o banco estiver em modo bloqueado, o site não conseguirá criar ou entrar nas salas; confira as regras acima.

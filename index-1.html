@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#101827">
+<title>Jogo da Velha Online</title>
+<style>
+:root{color-scheme:dark;--bg:#101827;--panel:#1b2638;--line:#34445c;--text:#f4f7fb;--muted:#a9b7ca;--accent:#7c5cff;--x:#63d5ff;--o:#ffbd69}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#253451 0,#101827 55%);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--text);display:flex;justify-content:center;padding:22px 14px}
+main{width:min(100%,460px)}header{text-align:center;margin:8px 0 22px}h1{font-size:clamp(1.8rem,7vw,2.5rem);margin:0;letter-spacing:-1px}header p{color:var(--muted);margin:8px 0}
+.panel{background:rgba(27,38,56,.94);border:1px solid var(--line);border-radius:20px;padding:18px;margin-bottom:14px;box-shadow:0 12px 32px #0002}
+label{display:block;color:var(--muted);font-size:.9rem;margin:0 0 7px}input{width:100%;padding:13px 14px;background:#111b2a;border:1px solid var(--line);border-radius:11px;color:var(--text);font:inherit;outline:none}input:focus{border-color:var(--accent)}
+button{border:0;border-radius:12px;padding:12px 15px;font:600 1rem inherit;font-family:inherit;font-weight:700;cursor:pointer;transition:transform .12s,filter .12s}button:active{transform:scale(.98)}button:disabled{opacity:.4;cursor:not-allowed}
+.primary{background:var(--accent);color:white;width:100%;margin-top:10px}.secondary{background:#2a3950;color:var(--text)}.row{display:flex;gap:9px}.row>*{flex:1;min-width:0}
+#status{font-weight:650;text-align:center;margin:4px 0 14px;font-size:1.05rem}#substatus{text-align:center;color:var(--muted);font-size:.9rem;margin:-7px 0 16px;overflow-wrap:anywhere}
+.board{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;max-width:330px;margin:0 auto}.cell{aspect-ratio:1;background:#111b2a;border:1px solid #34445c;border-radius:15px;font-size:clamp(2.6rem,15vw,4rem);font-weight:800;display:grid;place-items:center;padding:0}.cell.x{color:var(--x)}.cell.o{color:var(--o)}.cell:disabled{opacity:1}
+#game{display:none}.pill{display:inline-block;padding:5px 10px;border-radius:999px;background:#111b2a;color:var(--muted);font-size:.82rem}#roomDisplay{font-weight:800;letter-spacing:2px;color:#d8d0ff;font-size:1.2rem}
+.note{font-size:.86rem;color:var(--muted);line-height:1.5}.hidden{display:none!important}.small{font-size:.8rem;color:var(--muted);text-align:center;margin-top:12px}
+#message{margin-top:14px;text-align:center;color:var(--muted);font-size:.9rem;min-height:1.3em}
+footer{text-align:center;color:#8493a8;font-size:.8rem;margin:18px 0}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Jogo da Velha</h1><p>Desafie um amigo, cada um no seu celular.</p></header>
+
+<section class="panel" id="lobby">
+  <div id="setup">
+    <label for="playerName">Seu nome (opcional)</label>
+    <input id="playerName" maxlength="18" placeholder="Ex.: Kipressao">
+    <div class="row" style="margin-top:14px">
+      <button class="primary" id="createBtn">Criar sala</button>
+      <button class="secondary" id="showJoinBtn">Entrar em sala</button>
+    </div>
+    <div id="joinArea" class="hidden" style="margin-top:16px">
+      <label for="roomCode">Código da sala</label>
+      <input id="roomCode" maxlength="6" placeholder="Ex.: A7K2Q9" autocapitalize="characters">
+      <button class="primary" id="joinBtn">Entrar e jogar</button>
+    </div>
+    <p class="note" style="margin:16px 0 0">Crie uma sala e envie o código ao seu amigo. Ele abre o mesmo site no outro celular e entra com esse código.</p>
+  </div>
+  <div id="connecting" class="hidden" style="text-align:center">Conectando à sala…</div>
+</section>
+
+<section class="panel" id="game">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px">
+    <span class="pill" id="rolePill">Você é X</span>
+    <span class="pill" id="connectionPill">Conectando…</span>
+  </div>
+  <div style="text-align:center;margin-bottom:12px"><div class="note">Código da sala</div><div id="roomDisplay">------</div><button class="secondary" id="copyBtn" style="margin-top:8px">Copiar código</button></div>
+  <div id="status">Esperando jogador…</div>
+  <div id="substatus"></div>
+  <div class="board" id="board" aria-label="Tabuleiro do jogo da velha"></div>
+  <div class="row" style="margin-top:16px"><button class="secondary" id="restartBtn">Nova partida</button><button class="secondary" id="leaveBtn">Sair da sala</button></div>
+  <div id="message"></div>
+</section>
+<footer>Jogo online • feito para celular</footer>
+</main>
+
+<!-- Configure o Firebase conforme as instruções entregues junto com este arquivo. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/*
+CONFIGURAÇÃO OBRIGATÓRIA:
+1. Crie um projeto em https://console.firebase.google.com/
+2. Adicione um app Web e copie o objeto firebaseConfig abaixo.
+3. Ative Authentication > Sign-in method > Anonymous.
+4. Crie Realtime Database e use as regras de teste indicadas no guia.
+*/
+const firebaseConfig = {
+  apiKey: "COLOQUE_SUA_API_KEY",
+  authDomain: "SEU-PROJETO.firebaseapp.com",
+  databaseURL: "https://SEU-PROJETO-default-rtdb.firebaseio.com",
+  projectId: "SEU-PROJETO",
+  storageBucket: "SEU-PROJETO.appspot.com",
+  messagingSenderId: "COLOQUE_SEU_SENDER_ID",
+  appId: "COLOQUE_SEU_APP_ID"
+};
+
+const $ = id => document.getElementById(id);
+const lobby = $('lobby'), game = $('game'), setup = $('setup'), connecting = $('connecting');
+let db, currentRoom = null, roomRef = null, roomListener = null, playerId = null, myMark = null, roomData = null, busy = false;
+
+const winCombos = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+function getWinner(board){for(const [a,b,c] of winCombos) if(board[a] && board[a]===board[b] && board[a]===board[c]) return board[a]; return board.every(Boolean) ? 'draw' : null}
+function cleanName(){return $('playerName').value.trim().slice(0,18) || 'Jogador'}
+function showError(msg){$('message').textContent=msg}
+function makeCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<6;i++)s+=chars[Math.floor(Math.random()*chars.length)];return s}
+function isConfigured(){return firebaseConfig.apiKey !== 'COLOQUE_SUA_API_KEY' && firebaseConfig.projectId !== 'SEU-PROJETO' && firebaseConfig.databaseURL.startsWith('https://')}
+async function initFirebase(){
+  if(!isConfigured()) throw new Error('Falta configurar o Firebase. Abra o arquivo index.html e siga o guia de configuração.');
+  if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  await firebase.auth().signInAnonymously();
+  playerId=firebase.auth().currentUser.uid;
+  db=firebase.database();
+}
+function renderBoard(){
+  const board=$('board');board.innerHTML='';
+  const cells=(roomData && Array.isArray(roomData.board))?roomData.board:Array(9).fill('');
+  cells.forEach((mark,i)=>{
+    const b=document.createElement('button');b.className='cell'+(mark?' '+mark.toLowerCase():'');b.textContent=mark||'';
+    b.setAttribute('aria-label',`Casa ${i+1}${mark?', '+mark:' vazia'}`);
+    b.disabled=busy||!roomData||roomData.players?.O==null||roomData.turn!==myMark||!!roomData.winner||!!mark;
+    b.addEventListener('click',()=>playMove(i));board.appendChild(b);
+  });
+  updateStatus();
+}
+function updateStatus(){
+  if(!roomData)return;
+  const count=Object.keys(roomData.players||{}).filter(k=>roomData.players[k]).length;
+  $('connectionPill').textContent=count>=2?'2 jogadores conectados':'Esperando amigo';
+  $('rolePill').textContent=`Você joga de ${myMark}`;
+  if(count<2){$('status').textContent='Esperando seu amigo entrar…';$('substatus').textContent='Envie o código da sala para ele.';return}
+  if(roomData.winner==='draw'){$('status').textContent='Deu velha!';$('substatus').textContent='Ninguém venceu nesta partida.'}
+  else if(roomData.winner){const winnerName=roomData.players[roomData.winner]?.name||'Jogador';$('status').textContent=roomData.winner===myMark?'Você venceu!':`${winnerName} venceu!`;$('substatus').textContent='Toque em “Nova partida” para jogar novamente.'}
+  else {$('status').textContent=roomData.turn===myMark?'Sua vez!':`Vez de ${roomData.players[roomData.turn]?.name||'outro jogador'}`;$('substatus').textContent=`X: ${roomData.players.X?.name||'…'}  •  O: ${roomData.players.O?.name||'…'}`}
+}
+async function enterRoom(code, mark){
+  await initFirebase();
+  currentRoom=code;myMark=mark;roomRef=db.ref('rooms/'+code);
+  $('roomDisplay').textContent=code;
+  setup.classList.add('hidden');connecting.classList.remove('hidden');lobby.classList.remove('hidden');game.style.display='none';
+  if(mark==='X'){
+    const initial={board:Array(9).fill(''),turn:'X',winner:null,players:{X:{id:playerId,name:cleanName()},O:null},createdAt:firebase.database.ServerValue.TIMESTAMP};
+    await roomRef.set(initial);
+  } else {
+    const snap=await roomRef.get();
+    if(!snap.exists()) throw new Error('Essa sala não existe. Confira o código e tente novamente.');
+    const data=snap.val();
+    if(data.players?.X?.id===playerId) throw new Error('Você já é o criador desta sala.');
+    if(data.players?.O && data.players.O.id!==playerId) throw new Error('Essa sala já está cheia.');
+    await roomRef.child('players/O').set({id:playerId,name:cleanName()});
+  }
+  connecting.classList.add('hidden');lobby.classList.add('hidden');game.style.display='block';
+  if(roomListener) roomRef.off('value',roomListener);
+  roomListener=snap=>{roomData=snap.val();if(!roomData){showError('A sala foi encerrada.');return}renderBoard()};
+  roomRef.on('value',roomListener);
+}
+async function playMove(i){
+  if(busy||!roomData||roomData.turn!==myMark||roomData.winner||roomData.board[i]||!roomData.players?.O)return;
+  busy=true;
+  try{
+    await roomRef.transaction(data=>{
+      if(!data||data.turn!==myMark||data.winner||data.board[i]||!data.players?.O)return;
+      data.board[i]=myMark;
+      const winner=getWinner(data.board);
+      data.winner=winner;
+      data.turn=myMark==='X'?'O':'X';
+      return data;
+    });
+  }catch(e){showError('Não foi possível jogar. Verifique sua conexão.')}
+  busy=false;renderBoard();
+}
+async function restartGame(){
+  if(!roomRef||busy)return;busy=true;
+  try{await roomRef.transaction(data=>{if(!data)return;data.board=Array(9).fill('');data.turn='X';data.winner=null;return data})}
+  catch(e){showError('Não foi possível reiniciar.')}
+  busy=false;
+}
+$('createBtn').addEventListener('click',async()=>{
+  try{setup.classList.add('hidden');connecting.classList.remove('hidden');const code=makeCode();await enterRoom(code,'X')}
+  catch(e){setup.classList.remove('hidden');connecting.classList.add('hidden');alert(e.message||'Erro ao criar sala.')}
+});
+$('showJoinBtn').addEventListener('click',()=>$('joinArea').classList.toggle('hidden'));
+$('joinBtn').addEventListener('click',async()=>{
+  const code=$('roomCode').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if(code.length!==6){alert('Digite o código de 6 caracteres.');return}
+  try{await enterRoom(code,'O')}catch(e){setup.classList.remove('hidden');connecting.classList.add('hidden');alert(e.message||'Erro ao entrar na sala.')}
+});
+$('roomCode').addEventListener('input',e=>e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6));
+$('restartBtn').addEventListener('click',restartGame);
+$('copyBtn').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(currentRoom);$('copyBtn').textContent='Código copiado!'}catch(e){showError('Código da sala: '+currentRoom)}});
+$('leaveBtn').addEventListener('click',()=>{if(roomRef&&roomListener)roomRef.off('value',roomListener);roomRef=null;roomListener=null;currentRoom=null;roomData=null;myMark=null;game.style.display='none';lobby.classList.remove('hidden');setup.classList.remove('hidden');connecting.classList.add('hidden');$('joinArea').classList.add('hidden');$('message').textContent=''});
+</script>
+</body>
+</html>
